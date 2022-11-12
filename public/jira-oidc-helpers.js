@@ -1,10 +1,11 @@
-function JiraOIDCHelpers({
+export default function JiraOIDCHelpers({
 		JIRA_CLIENT_ID,
 		JIRA_SCOPE,
 		JIRA_CALLBACK_URL,
 		JIRA_API_URL
 	} = window.env){
 
+	let fieldsRequest;
 
 	function responseToJSON(response){
 		return response.json();
@@ -192,6 +193,24 @@ function JiraOIDCHelpers({
 				}
 			)
 		},
+		// this could do each response incrementally, but I'm being lazy
+		fetchAllJiraIssuesWithJQLAndFetchAllChangelogUsingNamedFields: async function(params){
+			const fields = await fieldsRequest;
+			const newParams = {
+				...params,
+				fields: params.fields.map( f => fields.nameMap[f] || f)
+			}
+			const response = await jiraHelpers.fetchAllJiraIssuesWithJQLAndFetchAllChangelog(newParams);
+
+
+			return response.map( (issue)=> {
+				return {
+					...issue,
+					fields: mapIdsToNames(issue.fields, fields)
+				}
+			});
+			// change the parms
+		},
 		fetchJiraFields(){
 			const scopeIdForJira = jiraHelpers.fetchFromLocalStorage('scopeId');
 			const accessToken = jiraHelpers.fetchFromLocalStorage('accessToken');
@@ -226,6 +245,40 @@ function JiraOIDCHelpers({
 			const currentTimestamp = Math.floor(new Date().getTime()/1000.0);
 			return !((currentTimestamp > expiryTimestamp) || (!accessToken))
 		}
+	}
+
+
+	function makeFieldNameToIdMap(fields){
+		const map = {};
+		fields.forEach((f) => {
+			map[f.name] = f.id;
+		});
+		return map;
+	}
+
+
+	fieldsRequest = jiraHelpers.fetchJiraFields().then( (fields) => {
+		const nameMap = {};
+		const idMap = {};
+		fields.forEach((f) => {
+			idMap[f.id] = f.name;
+			nameMap[f.name] = f.id;
+		});
+		console.log(nameMap);
+
+		return {
+			list: fields,
+			nameMap: nameMap,
+			idMap:idMap
+		}
+	});
+
+	function mapIdsToNames(obj, fields) {
+		const mapped = {};
+		for(let prop in obj) {
+			mapped[ fields.idMap[prop] || prop] = obj[prop];
+		}
+		return mapped;
 	}
 
 	return jiraHelpers;
