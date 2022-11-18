@@ -1,3 +1,15 @@
+
+const CACHE_FETCH = true;
+
+function responseToJSON(response){
+	return response.json();
+}
+
+function nativeFetchJSON(url, options) {
+	return fetch(url, options).then(responseToJSON)
+}
+
+
 export default function JiraOIDCHelpers({
 		JIRA_CLIENT_ID,
 		JIRA_SCOPE,
@@ -5,11 +17,34 @@ export default function JiraOIDCHelpers({
 		JIRA_API_URL
 	} = window.env){
 
+
+
+	let fetchJSON = nativeFetchJSON;
+	if(CACHE_FETCH) {
+		fetchJSON = async function(url,options){
+			if(window.localStorage.getItem(url)) {
+				return JSON.parse( window.localStorage.getItem(url) );
+			} else {
+				const result = nativeFetchJSON(url, options);
+				result.then(async data => {
+					try{
+						window.localStorage.setItem(url, JSON.stringify(data));
+					} catch(e) {
+						console.log("can't save");
+					}
+
+				});
+				return result;
+			}
+		};
+	}
+
+
 	let fieldsRequest;
 
-	function responseToJSON(response){
-		return response.json();
-	}
+
+
+
 
 	const jiraHelpers = {
 		saveInformationToLocalStorage: (parameters) => {
@@ -84,7 +119,7 @@ export default function JiraOIDCHelpers({
 			const scopeIdForJira = jiraHelpers.fetchFromLocalStorage('scopeId');
 			const accessToken = jiraHelpers.fetchFromLocalStorage('accessToken');
 
-			return fetch(
+			return fetchJSON(
 				`${JIRA_API_URL}/${scopeIdForJira}/rest/api/3/search?` +
 					new URLSearchParams(params),
 					{
@@ -93,7 +128,7 @@ export default function JiraOIDCHelpers({
 						}
 					}
 
-				).then(responseToJSON)
+				)
 		},
 		fetchAllJiraIssuesWithJQL: async function(params){
 			const firstRequest = jiraHelpers.fetchJiraIssuesWithJQL({maxResults: 100, ...params});
@@ -114,7 +149,7 @@ export default function JiraOIDCHelpers({
 			const scopeIdForJira = jiraHelpers.fetchFromLocalStorage('scopeId');
 			const accessToken = jiraHelpers.fetchFromLocalStorage('accessToken');
 
-			return fetch(
+			return fetchJSON(
 				`${JIRA_API_URL}/${scopeIdForJira}/rest/api/3/issue/${issueIdOrKey}/changelog?` +
 					new URLSearchParams(params),
 					{
@@ -123,7 +158,7 @@ export default function JiraOIDCHelpers({
 						}
 					}
 
-				).then(responseToJSON)
+				)
 		},
 		isChangelogComplete(changelog) {
 			return changelog.histories.length === changelog.total
@@ -149,20 +184,23 @@ export default function JiraOIDCHelpers({
 		// weirdly, this starts with the oldest, but we got the most recent
 		// returns an array of histories objects
 		fetchRemainingChangelogsForIssue(issueIdOrKey, mostRecentChangeLog) {
-
 			const {histories, maxResults, total, startAt} = mostRecentChangeLog;
 
 			const requests = [];
+			requests.push({values: mostRecentChangeLog.histories});
 			for(let i = 0; i < total - maxResults; i += maxResults) {
 				requests.push(
 					jiraHelpers.fetchJiraChangelog(issueIdOrKey, {
 						maxResults: Math.min(maxResults, total - maxResults - i),
 						startAt: i,
+					}).then( (response) => {
+						// the query above reverses the sort order, we fix that here
+						return {...response, values: response.values.reverse()};
 					})
 				);
 			}
 			// server sends back as "values", we match that
-			requests.push({values: mostRecentChangeLog.histories.reverse()});
+
 			return Promise.all(requests).then(
 				(responses)=> {
 					return responses.map( (response)=> response.values ).flat();
@@ -215,14 +253,14 @@ export default function JiraOIDCHelpers({
 			const scopeIdForJira = jiraHelpers.fetchFromLocalStorage('scopeId');
 			const accessToken = jiraHelpers.fetchFromLocalStorage('accessToken');
 
-			return fetch(
+			return fetchJSON(
 				`${JIRA_API_URL}/${scopeIdForJira}/rest/api/3/field`,
 					{
 						headers: {
 							'Authorization': `Bearer ${accessToken}`,
 						}
 					}
-				).then(responseToJSON)
+				)
 		},
 		getAccessToken: async function() {
 			if( !jiraHelpers.hasValidAccessToken() ){

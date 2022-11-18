@@ -1,5 +1,5 @@
 // https://yumbrands.atlassian.net/issues/?filter=10897
-import { StacheElement, type, ObservableObject } from "//unpkg.com/can@6/core.mjs";
+import { StacheElement, type, ObservableObject } from "//unpkg.com/can@6/core.min.mjs";
 import sheet from "./steerco-reporting.css" assert {type: 'css'};
 
 import {howMuchHasDueDateMovedForwardChangedSince, DAY_IN_MS, FOUR_WEEKS_AGO} from "./date-helpers.js";
@@ -17,13 +17,14 @@ const START_DATE_KEY = "Start date";
 const DUE_DATE_KEY = "Due date";
 const LABELS_KEY = "Labels";
 const STATUS_KEY = "Status";
+const FIX_VERSIONS_KEY = "Fix versions";
 
 document.adoptedStyleSheets = [sheet];
 
 export class SteercoReporter extends StacheElement {
   static view = `
 					{{# if(this.releases) }}
-						<steerco-timeline releases:from="this.releasesAndNext"/>
+						<!-- <steerco-timeline releases:from="this.releasesAndNext"/> -->
 						<table>
 							<thead>
 								<tr>
@@ -67,7 +68,15 @@ export class SteercoReporter extends StacheElement {
     },
 		jql: {
 			type: String,
-			default: `(issuekey in portfolioChildIssuesOf(YUMPOS-266)  OR labels in (TB_US_POS) ) and issueType in (Initiatives, Epic) ORDER BY issuetype DESC`
+		},
+		mode: {
+			type: String,
+		},
+		getReleaseValue: {
+			type: Function,
+			default: function(issue){
+				return issue?.[FIX_VERSIONS_KEY]?.[0]?.name;
+			}
 		}
   };
   // hooks
@@ -97,30 +106,55 @@ export class SteercoReporter extends StacheElement {
   drawSlide(results) {
 		this.rawIssues = makeObjectsFromRows(results.data);
   }
+	get teamKeyToCharacters(){
+		if(!this.rawIssues) {
+			return [];
+		}
+		const names = new Set( this.rawIssues.map( issue => issue["Project key"]) );
+		characterNamer(names);
+		return names;
+	}
 	get releases(){
 		if(!this.rawIssues) {
 			return undefined;
 		}
+		console.log(this.teamKeyToCharacters)
+		const releasesToInitiatives = mapReleasesToIssues(
+			filterReleases(
+				filterOutStatuses(
+					filterInitiatives(this.rawIssues), ["Done", "Partner Review"]),
+					this.getReleaseValue
+				),
+				this.getReleaseValue
+			);
 
-		const releasesToInitiatives = mapReleasesToIssues(filterReleases(filterOutStatuses(filterInitiatives(this.rawIssues), ["Done", "Partner Review"])));
+
 
 		const sortedReleases = semverSort(Object.keys(releasesToInitiatives));
 
 
 		const issueMap = makeIssueMap(this.rawIssues);
 
+
 		return sortedReleases.map( release => {
+
 			const releaseData = {
 				release: release,
 				initiatives: releasesToInitiatives[release].map( initiative => {
 					const epics = getChildrenOf(initiative, issueMap);
 
+					const qaEpics = new Set( filterQAWork(epics) );
+					const uatEpics = new Set( filterPartnerReviewWork(epics) );
+					const devEpics = epics.filter( epic => !qaEpics.has(epic) && !uatEpics.has(epic))
+
 					return {
 						...initiative,
+						// [POS, Admin, Foo, ... that is not QA or UAT]
 						//...goodStuffFromIssue(initiative),
 						dev: sortByStartDate( filterPOSWork(epics) )[0],
-						qa: filterQAWork(epics)[0],
-						uat: filterPartnerReviewWork(epics)[0]
+						teamDev: sortByStartDate(devEpics),
+						qa: sortByStartDate([...qaEpics])[0],
+						uat: sortByStartDate([...uatEpics])[0]
 					}
 				})
 			};
@@ -129,10 +163,12 @@ export class SteercoReporter extends StacheElement {
 			releaseData.lastDev = getLastDateFrom(releaseData.initiatives,"dev");
 			releaseData.lastQa = getLastDateFrom(releaseData.initiatives,"qa");
 			releaseData.lastUat = getLastDateFrom(releaseData.initiatives,"uat");
-
 			releaseData.lastDevWas = getDateFromLastPeriod(releaseData.initiatives,"dev", FOUR_WEEKS_AGO);
 			releaseData.lastQaWas = getDateFromLastPeriod(releaseData.initiatives,"qa", FOUR_WEEKS_AGO)
 			releaseData.lastUatWas = getDateFromLastPeriod(releaseData.initiatives,"uat", FOUR_WEEKS_AGO)
+			//releaseData.firstTeamDev = releaseData.initiatives.
+
+			// we could also grab everything by team ...
 
 			return releaseData;
 
@@ -144,14 +180,18 @@ export class SteercoReporter extends StacheElement {
 				...this.releases,
 				{
 					release: "Next",
-					initiatives: sortReadyFirst(filterPlanningAndReady(filterOutReleases(filterInitiatives(this.rawIssues))))
+					initiatives: sortReadyFirst(filterPlanningAndReady(
+						filterOutReleases(
+							filterInitiatives(this.rawIssues),
+							this.getReleaseValue
+						)))
 				}];
 			return releasesAndNext;
 		}
 	}
 
 	prettyDate(date){
-		return dateFormatter.format(date);
+		return date ? dateFormatter.format(date) : "";
 	}
 
 }
@@ -177,12 +217,12 @@ function goodStuffFromIssue(issue) {
 	}
 }
 
-function filterReleases(issues){
-	return issues.filter( issue => issue[PRODUCT_TARGET_RELEASE_KEY])
+function filterReleases(issues, getReleaseValue){
+	return issues.filter( issue => getReleaseValue(issue))
 }
 
-function filterOutReleases(issues){
-	return issues.filter( issue => !issue[PRODUCT_TARGET_RELEASE_KEY])
+function filterOutReleases(issues, getReleaseValue){
+	return issues.filter( issue => !getReleaseValue( issue ) );
 }
 function filterPlanningAndReady(issues){
 	return issues.filter( issue => ["Ready","Planning"].includes(issue.Status))
@@ -191,10 +231,10 @@ function filterOutStatuses(issues, statuses) {
 	return issues.filter( issue => !statuses.includes(issue.Status))
 }
 
-function mapReleasesToIssues(issues) {
+function mapReleasesToIssues(issues, getReleaseValue) {
 	const map = {};
 	issues.forEach((issue) => {
-		const release = issue[PRODUCT_TARGET_RELEASE_KEY]
+		const release = getReleaseValue(issue)
 		if(!map[release]) {
 			map[release] = [];
 		}
@@ -207,7 +247,13 @@ function semverSort(values) {
 	const cleanMap = {};
 	const cleanValues = [];
 	values.forEach( (release) => {
-		const clean = release.replace(/^[^\d]+/,"").replace(".X",".0");
+		let clean = release.replace(/^[^\d]+/,"").replace(".X",".0");
+		if(clean.length === 1) {
+			clean = clean+".0.0";
+		}
+		if(clean.length === 3) {
+			clean = clean+".0";
+		}
 		if( semver.clean(clean) ){
 			cleanMap[clean] = release;
 			cleanValues.push(clean);
@@ -243,16 +289,20 @@ function getChildrenOf(issue, issuesOrIssueMap) {
 }
 
 function filterByLabel(issues,label){
-	return issues.filter( issue => issue[LABELS_KEY].includes(label))
+	return issues.filter(
+		issue => issue[LABELS_KEY].filter(
+			l => l.includes(label)
+		).length
+	);
 }
 function filterQAWork(issues) {
-	return filterByLabel(issues, "POS_QA")
+	return filterByLabel(issues, "QA")
 }
 function filterPOSWork(issues) {
 	return filterByLabel(issues, "POS_WORK")
 }
 function filterPartnerReviewWork(issues) {
-	return filterByLabel(issues, "TB_UAT")
+	return filterByLabel(issues, "UAT")
 }
 function sortByStartDate(issues) {
 	return issues.sort((issueA, issueB) => {
@@ -286,7 +336,7 @@ function getDateFromLastPeriod(initiatives, lowercasePhase, checkpoint) {
 
 function getFirstDateFrom(initiatives, property) {
 	const values = initiatives.filter(
-		init => init[property] && init[property][START_DATE_KEY]
+		init => init[property]?.[START_DATE_KEY]
 	).map( init => Date.parse(init[property][START_DATE_KEY]));
 	return values.length ? new Date(Math.min(...values)) : undefined;
 }
@@ -306,6 +356,7 @@ function toCVSFormat(issues){
 		return {
 			...issue.fields,
 			changelog: issue.changelog,
+			"Project key": issue.key.replace(/-.*/,""),
 			[ISSUE_KEY]: issue.key,
 			[ISSUE_TYPE_KEY]: issue.fields[ISSUE_TYPE_KEY].name,
 			[PRODUCT_TARGET_RELEASE_KEY]: issue.fields[PRODUCT_TARGET_RELEASE_KEY]?.[0],
@@ -313,4 +364,57 @@ function toCVSFormat(issues){
 			[STATUS_KEY]: issue.fields[STATUS_KEY]?.name
 		}
 	})
+}
+
+function addToCharacterMap(fullName, name, map = {}) {
+	if(name === "") {
+		map.last = true;
+	}
+	map.followers.push(fullName);
+
+	if( !map.characterMap[name[0]] ) {
+		map.characterMap[name[0]] = {
+			followers: [],
+			characterMap: {}
+		};
+	}
+	if(name !== "") {
+		addToCharacterMap(fullName, name.substr(1), map.characterMap[name[0]])
+	}
+
+}
+
+function pruneFrom(rootMap, path, namesToCharacter) {
+
+	while(Object.keys(rootMap.characterMap).length) {
+		const character = Object.keys(rootMap.characterMap)[0];
+		const childMap = rootMap.characterMap[character];
+		if(childMap.followers.length === 1) {
+			namesToCharacter[childMap.followers[0]] = character;
+			delete rootMap.characterMap[character];
+		} else if(childMap.last === true){
+			namesToCharacter[path+character] = character;
+			pruneFrom(childMap, path+character, namesToCharacter);
+			delete rootMap.characterMap[character];
+		} else {
+			pruneFrom(childMap, path+character, namesToCharacter);
+			delete rootMap.characterMap[character];
+		}
+	}
+}
+
+function characterNamer(names) {
+	const root = {
+		characterMap: {},
+		followers: []
+	};
+	for(const name of names){
+		addToCharacterMap(name, name, root);
+	}
+
+	const namesToCharacter = {};
+	debugger;
+	pruneFrom(root, "",namesToCharacter);
+
+	return namesToCharacter;
 }

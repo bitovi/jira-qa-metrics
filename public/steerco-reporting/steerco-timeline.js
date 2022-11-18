@@ -1,5 +1,5 @@
 // https://yumbrands.atlassian.net/issues/?filter=10897
-import { StacheElement, type, ObservableObject, stache } from "//unpkg.com/can@6/core.mjs";
+import { StacheElement, type, ObservableObject, stache } from "//unpkg.com/can@6/core.min.mjs";
 
 import {getCalendarHtml, getQuarter} from "./quarter-timeline.js";
 import {howMuchHasDueDateMovedForwardChangedSince, DAY_IN_MS, FOUR_WEEKS_AGO} from "./date-helpers.js";
