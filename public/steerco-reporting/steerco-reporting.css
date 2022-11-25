@@ -2,6 +2,8 @@
   --complete-color: #0070c6;
 	--ontrack-color: #77ae99;
 	--behind-color: #f5de7d;
+	--unknown-color: #ffd9be;
+	--notstarted-color: rgb(134,134,134);
 }
 
 body {
@@ -51,12 +53,14 @@ steerco-timeline {
 	position: relative;
 }
 .gantt .release_time {
-	border: solid 1px white;
+	border: solid 1px rgb(134,134,134);
+	background-color: rgb(148,148,148);
 	text-align: right;
 	position: relative;
 	z-index: -2;
 	/* Pattern 2 */
-	background-image: repeating-linear-gradient(26deg, rgba(255,255,255, 0.25), rgba(255,255,255, 0.25) 2px, transparent 3px, transparent 7px);
+	/*background-image: repeating-linear-gradient(26deg, rgba(255,255,255, 0.25), rgba(255,255,255, 0.25) 2px, transparent 3px, transparent 7px);*/
+	color: white;
 }
 
 .gantt .uat_time, .gantt .dev_time {
@@ -211,4 +215,34 @@ steerco-timeline {
 .release_box .status-behind {
 	color: black;
 	background-color: var(--behind-color);
+}
+.release_box .status-unknown {
+	color: black;
+	background-color: var(--unknown-color);
+}
+.release_box .status-notstarted {
+	color: white;
+	background-color: var(--notstarted-color);
+}
+
+
+.basic-table {
+    border: solid 1px #DDEEEE;
+    border-collapse: collapse;
+    border-spacing: 0;
+    font: normal 13px Arial, sans-serif;
+}
+.basic-table thead th {
+    background-color: #DDEFEF;
+    border: solid 1px #DDEEEE;
+    color: #336B6B;
+    padding: 10px;
+    text-align: left;
+    text-shadow: 1px 1px 1px #fff;
+}
+.basic-table tbody td {
+    border: solid 1px #DDEEEE;
+    color: #333;
+    padding: 10px;
+
 }

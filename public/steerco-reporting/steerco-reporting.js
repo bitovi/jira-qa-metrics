@@ -5,6 +5,8 @@ import sheet from "./steerco-reporting.css" assert {type: 'css'};
 import {howMuchHasDueDateMovedForwardChangedSince, DAY_IN_MS, FOUR_WEEKS_AGO} from "./date-helpers.js";
 import semver from "./semver.js";
 
+import {addStatusToInitiative, addStatusToEpic, addStatusToRelease} from "./status-helpers.js";
+
 const dateFormatter = new Intl.DateTimeFormat('en-US', {dateStyle: "short"})
 
 import "./steerco-timeline.js";
@@ -24,32 +26,129 @@ document.adoptedStyleSheets = [sheet];
 export class SteercoReporter extends StacheElement {
   static view = `
 					{{# if(this.releases) }}
-						<!-- <steerco-timeline releases:from="this.releasesAndNext"/> -->
-						<table>
-							<thead>
-								<tr>
-									<th>Release Number</th>
-									<th>Initiatives</th>
-									<th>Dev Complete</th>
-									<th>QA Complete</th>
-									<th>UAT Complete</th>
+						<steerco-timeline releases:from="this.releases"/>
+
+						{{# for(release of this.releasesAndNext) }}
+							<h2>{{release.release}}</h2>
+							<table class='basic-table'>
+								<thead>
+								<tr><th>Sequence</th>
+										<th>Start</th>
+										<th>Due</th>
+										<th>Due last period</th>
 								</tr>
-							</thead>
-							<tbody>
-								{{# for(release of this.releasesAndNext) }}
-									<tr>
-										<td>{{release.release}}</td>
-										<td><ul>{{# for(initiative of release.initiatives) }}
-												<li>{{initiative.Summary}}</li>
-												{{/ for}}</ul>
-										</td>
-										<td>{{this.prettyDate(release.lastDev)}}</td>
-										<td>{{this.prettyDate(release.lastQa)}}</td>
-										<td>{{this.prettyDate(release.lastUat)}}</td>
-									</tr>
-								{{/ for }}
-							</tbody>
-						</table>
+								</thead>
+								<tbody  class='release_box'>
+								<tr>
+									<td class='status-{{release.status}}'>E2E</td>
+									<td>{{this.prettyDate(release.team.start)}}</td>
+									<td>{{this.prettyDate(release.team.due)}}</td>
+									<td>{{this.prettyDate(release.team.dueLastPeriod)}}</td>
+								</tr>
+								<tr>
+									<td>Dev</td>
+									<td>{{this.prettyDate(release.dev.start)}}</td>
+									<td>{{this.prettyDate(release.dev.due)}}</td>
+									<td>{{this.prettyDate(release.dev.dueLastPeriod)}}</td>
+								</tr>
+								<tr>
+									<td>QA</td>
+									<td>{{this.prettyDate(release.qa.start)}}</td>
+									<td>{{this.prettyDate(release.qa.due)}}</td>
+									<td>{{this.prettyDate(release.qa.dueLastPeriod)}}</td>
+								</tr>
+								<tr>
+									<td>UAT</td>
+									<td>{{this.prettyDate(release.uat.start)}}</td>
+									<td>{{this.prettyDate(release.uat.due)}}</td>
+									<td>{{this.prettyDate(release.uat.dueLastPeriod)}}</td>
+								</tr>
+								</tbody>
+							</table>
+							<table class='basic-table'>
+								<thead>
+								<tr><th>Initiative</th>
+										<th>Teams</th>
+										<th>Dev Dates</th>
+										<th>Dev Epics</th>
+
+										<th>QA Dates</th>
+										<th>QA Epics</th>
+
+										<th>UAT Dates</th>
+										<th>UAT Epics</th>
+								</tr>
+								</thead>
+								<tbody>
+								{{# for(initiative of release.initiatives) }}
+										<tr  class='release_box'>
+											<td><a class="status-{{initiative.status}}" href="{{initiative.url}}">{{initiative.Summary}}</a></td>
+
+											<td>
+												{{# for(team of this.initiativeTeams(initiative) ) }}
+													{{team}}
+												{{/ for }}
+											</td>
+
+											<td>
+												Start: {{this.prettyDate(initiative.dev.start)}} <br/>
+												Due: {{this.prettyDate(initiative.dev.due)}} <br/>
+												Last Due: {{this.prettyDate(initiative.dev.dueLastPeriod)}}
+
+											</td>
+											<td>
+												<ul>
+												{{# for( epic of initiative.dev.issues ) }}
+													<li><a class="status-{{epic.status}}" href="{{epic.url}}">
+														{{epic.Summary}}
+													</a></li>
+												{{/ }}
+												</ul>
+											</td>
+
+
+											<td>
+												Start: {{this.prettyDate(initiative.qa.start)}} <br/>
+												Due: {{this.prettyDate(initiative.qa.due)}} <br/>
+												Last Due: {{this.prettyDate(initiative.qa.dueLastPeriod)}}
+
+											</td>
+											<td>
+												<ul class='release_box'>
+												{{# for( epic of initiative.qa.issues ) }}
+													<li><a class="status-{{epic.status}}" href="{{epic.url}}">
+														{{epic.Summary}}
+													</a></li>
+												{{/ }}
+												</ul>
+											</td>
+
+											<td>
+												Start: {{this.prettyDate(initiative.uat.start)}} <br/>
+												Due: {{this.prettyDate(initiative.uat.due)}} <br/>
+												Last Due: {{this.prettyDate(initiative.uat.dueLastPeriod)}}
+
+											</td>
+											<td>
+												<ul class='release_box'>
+												{{# for( epic of initiative.uat.issues ) }}
+													<li><a class="status-{{epic.status}}" href="{{epic.url}}">
+														{{epic.Summary}}
+													</a></li>
+												{{/ }}
+												</ul>
+											</td>
+										</tr>
+									{{/ for}}
+								</tbody>
+							</table>
+
+
+
+							<ul>
+							</ul>
+						{{/ for }}
+
 
 					{{ else }}
 						Loading ...
@@ -81,10 +180,14 @@ export class SteercoReporter extends StacheElement {
   };
   // hooks
   async connected() {
+		this.jiraHelpers.getServerInfo().then( (serverInfo) => {
+			this.serverInfo = serverInfo;
+		});
 
 		if(this.jql) {
+			const serverInfoPromise = this.jiraHelpers.getServerInfo();
 
-			const issues = await this.jiraHelpers.fetchAllJiraIssuesWithJQLAndFetchAllChangelogUsingNamedFields({
+			const issuesPromise = this.jiraHelpers.fetchAllJiraIssuesWithJQLAndFetchAllChangelogUsingNamedFields({
 				jql: this.jql,
 				fields: ["summary",
 						"Start date",
@@ -94,10 +197,13 @@ export class SteercoReporter extends StacheElement {
 						"Product Target Release", PARENT_LINK_KEY, LABELS_KEY, STATUS_KEY ],
 				expand: ["changelog"]
 			});
-			// clean up from excell
-			const rawIssues = toCVSFormat(issues)
-			console.log(rawIssues);
-			this.rawIssues = rawIssues;
+
+			Promise.all([
+				issuesPromise, serverInfoPromise
+			]).then( ([issues, serverInfo])=>{
+				this.rawIssues = toCVSFormat(issues, serverInfo);
+			})
+
 
 		}
 
@@ -111,14 +217,28 @@ export class SteercoReporter extends StacheElement {
 			return [];
 		}
 		const names = new Set( this.rawIssues.map( issue => issue["Project key"]) );
-		characterNamer(names);
-		return names;
+		return characterNamer(names);
 	}
-	get releases(){
+	get issuesMappedByParentKey(){
 		if(!this.rawIssues) {
-			return undefined;
+			return {};
 		}
-		console.log(this.teamKeyToCharacters)
+		const map = {};
+		for(const issue of this.rawIssues) {
+			if(issue[PARENT_LINK_KEY]){
+				if(!map[issue[PARENT_LINK_KEY]]){
+					map[issue[PARENT_LINK_KEY]] = []
+				}
+				map[issue[PARENT_LINK_KEY]].push(issue);
+			}
+		}
+		return map;
+	}
+	get sortedIncompleteReleasesInitiativesAndEpics(){
+		if(!this.rawIssues) {
+			return [];
+		}
+		const issuesMappedByParentKey = this.issuesMappedByParentKey;
 		const releasesToInitiatives = mapReleasesToIssues(
 			filterReleases(
 				filterOutStatuses(
@@ -128,51 +248,65 @@ export class SteercoReporter extends StacheElement {
 				this.getReleaseValue
 			);
 
+		const semverReleases = semverSort(Object.keys(releasesToInitiatives));
 
+		const shortReleaseNames = uniqueTrailingNames(semverReleases);
 
-		const sortedReleases = semverSort(Object.keys(releasesToInitiatives));
+		return semverReleases.map( (release, index) => {
+			const initiatives = releasesToInitiatives[release].map( (i) => {
 
+				const timedEpics = (issuesMappedByParentKey[i[ISSUE_KEY]] || []).map( (e) => {
+					const {dueDateWasPriorToTheFirstChangeAfterTheCheckpoint} = howMuchHasDueDateMovedForwardChangedSince(e, FOUR_WEEKS_AGO)
+					return addStatusToEpic({
+						...e,
+						workType: isQAWork(e) ? "qa" : ( isPartnerReviewWork(e) ? "uat" : "dev"),
+						dueLastPeriod: dueDateWasPriorToTheFirstChangeAfterTheCheckpoint
+					})
+				});
 
-		const issueMap = makeIssueMap(this.rawIssues);
+				// try to figure out what is dev or QA
+				const qaEpics = new Set( filterQAWork(timedEpics) );
+				const uatEpics = new Set( filterPartnerReviewWork(timedEpics) );
+				const devEpics = timedEpics.filter( epic => !qaEpics.has(epic) && !uatEpics.has(epic))
 
+				return addStatusToInitiative({
+					...i,
+					team: epicTimingData(timedEpics),
+					dev: epicTimingData([...devEpics]),
+					qa: epicTimingData([...qaEpics]),
+					uat: epicTimingData([...uatEpics])
+				});
+			});
 
-		return sortedReleases.map( release => {
-
-			const releaseData = {
+			const releaseObject = {
 				release: release,
-				initiatives: releasesToInitiatives[release].map( initiative => {
-					const epics = getChildrenOf(initiative, issueMap);
+				shortName: shortReleaseNames[index],
+				initiatives
+			}
 
-					const qaEpics = new Set( filterQAWork(epics) );
-					const uatEpics = new Set( filterPartnerReviewWork(epics) );
-					const devEpics = epics.filter( epic => !qaEpics.has(epic) && !uatEpics.has(epic))
+			for(const key of ["team","dev","qa","uat"]) {
+				releaseObject[key] = epicTimingData(
+					initiatives.map( i => i[key].issues).flat()
+				)
+			}
 
-					return {
-						...initiative,
-						// [POS, Admin, Foo, ... that is not QA or UAT]
-						//...goodStuffFromIssue(initiative),
-						dev: sortByStartDate( filterPOSWork(epics) )[0],
-						teamDev: sortByStartDate(devEpics),
-						qa: sortByStartDate([...qaEpics])[0],
-						uat: sortByStartDate([...uatEpics])[0]
-					}
-				})
-			};
-
-			releaseData.firstDev = getFirstDateFrom(releaseData.initiatives,"dev") || new Date();
-			releaseData.lastDev = getLastDateFrom(releaseData.initiatives,"dev");
-			releaseData.lastQa = getLastDateFrom(releaseData.initiatives,"qa");
-			releaseData.lastUat = getLastDateFrom(releaseData.initiatives,"uat");
-			releaseData.lastDevWas = getDateFromLastPeriod(releaseData.initiatives,"dev", FOUR_WEEKS_AGO);
-			releaseData.lastQaWas = getDateFromLastPeriod(releaseData.initiatives,"qa", FOUR_WEEKS_AGO)
-			releaseData.lastUatWas = getDateFromLastPeriod(releaseData.initiatives,"uat", FOUR_WEEKS_AGO)
-			//releaseData.firstTeamDev = releaseData.initiatives.
-
-			// we could also grab everything by team ...
-
-			return releaseData;
-
+			return addStatusToRelease( releaseObject );
 		})
+	}
+	get sortedIncompleteReleasesWithEpics(){
+		return sortedReleases.map( release => {
+			return {
+
+			}
+		})
+	}
+	get releases(){
+		if(!this.rawIssues ) {
+			return undefined;
+		}
+		const data = this.sortedIncompleteReleasesInitiativesAndEpics;
+		console.log(data);
+		return data;
 	}
 	get releasesAndNext(){
 		if(this.releases) {
@@ -192,6 +326,10 @@ export class SteercoReporter extends StacheElement {
 
 	prettyDate(date){
 		return date ? dateFormatter.format(date) : "";
+	}
+
+	initiativeTeams(initiative) {
+		return [...new Set( initiative.team.issues.map( issue => issue["Project key"]) ) ];
 	}
 
 }
@@ -247,20 +385,23 @@ function semverSort(values) {
 	const cleanMap = {};
 	const cleanValues = [];
 	values.forEach( (release) => {
-		let clean = release.replace(/^[^\d]+/,"").replace(".X",".0");
-		if(clean.length === 1) {
-			clean = clean+".0.0";
+		let match = release.match(/(?:\d+\.\d+\.[\dX]+)|(?:\d+\.[\dX]+)|(?:\d+)$/);
+		if(match) {
+			let clean = match[0].replace(".X",".0");
+			if(clean.length === 1) {
+				clean = clean+".0.0";
+			}
+			if(clean.length === 3) {
+				clean = clean+".0";
+			}
+			if( semver.clean(clean) ){
+				cleanMap[clean] = release;
+				cleanValues.push(clean);
+			}
 		}
-		if(clean.length === 3) {
-			clean = clean+".0";
-		}
-		if( semver.clean(clean) ){
-			cleanMap[clean] = release;
-			cleanValues.push(clean);
-		}
-
 	});
 	const cleanSorted = semver.sort(cleanValues);
+
 	return cleanSorted.map( clean => cleanMap[clean]);
 }
 
@@ -298,11 +439,17 @@ function filterByLabel(issues,label){
 function filterQAWork(issues) {
 	return filterByLabel(issues, "QA")
 }
+function isQAWork(issue) {
+	return filterQAWork([issue]).length > 0
+}
 function filterPOSWork(issues) {
 	return filterByLabel(issues, "POS_WORK")
 }
 function filterPartnerReviewWork(issues) {
 	return filterByLabel(issues, "UAT")
+}
+function isPartnerReviewWork(issue) {
+	return filterPartnerReviewWork([issue]).length > 0
 }
 function sortByStartDate(issues) {
 	return issues.sort((issueA, issueB) => {
@@ -315,7 +462,7 @@ function sortByStartDate(issues) {
 function getLastDateFrom(initiatives, property) {
 	const values = initiatives.filter(
 		init => init[property]
-	).map( init => Date.parse(init[property][DUE_DATE_KEY]))
+	).map( init => Date.parse(init[property]))
 	.filter( (number) => !isNaN(number) );
 	return values.length ? new Date(Math.max(...values)) : undefined;
 }
@@ -333,6 +480,31 @@ function getDateFromLastPeriod(initiatives, lowercasePhase, checkpoint) {
 }
 
 
+function epicTimingData(epics) {
+	const sorted = sortByStartDate(epics);
+	return {
+		issues: sorted,
+		start: firstDateFromList(sorted),
+		due: endDateFromList(sorted),
+		dueLastPeriod: endDateFromList(sorted,"dueLastPeriod")
+	}
+}
+
+function endDateFromList(issues, property = DUE_DATE_KEY) {
+	const values = issues.filter(
+		issue => issue[property]
+	).map( issue => Date.parse(issue[property]) )
+	.filter( (number) => !isNaN(number) );
+	return values.length ? new Date(Math.max(...values)) : undefined;
+}
+
+
+function firstDateFromList(issues) {
+	const values = issues.filter(
+		issue => issue[START_DATE_KEY]
+	).map( issue => Date.parse(issue[START_DATE_KEY]));
+	return values.length ? new Date(Math.min(...values)) : undefined;
+}
 
 function getFirstDateFrom(initiatives, property) {
 	const values = initiatives.filter(
@@ -351,13 +523,14 @@ function sortReadyFirst(initiatives) {
 	})
 }
 
-function toCVSFormat(issues){
+function toCVSFormat(issues, serverInfo){
 	return issues.map( issue => {
 		return {
 			...issue.fields,
 			changelog: issue.changelog,
 			"Project key": issue.key.replace(/-.*/,""),
 			[ISSUE_KEY]: issue.key,
+			url: serverInfo.baseUrl+"/browse/"+issue.key,
 			[ISSUE_TYPE_KEY]: issue.fields[ISSUE_TYPE_KEY].name,
 			[PRODUCT_TARGET_RELEASE_KEY]: issue.fields[PRODUCT_TARGET_RELEASE_KEY]?.[0],
 			[PARENT_LINK_KEY]: issue.fields[PARENT_LINK_KEY]?.data?.key,
@@ -381,7 +554,6 @@ function addToCharacterMap(fullName, name, map = {}) {
 	if(name !== "") {
 		addToCharacterMap(fullName, name.substr(1), map.characterMap[name[0]])
 	}
-
 }
 
 function pruneFrom(rootMap, path, namesToCharacter) {
@@ -411,10 +583,33 @@ function characterNamer(names) {
 	for(const name of names){
 		addToCharacterMap(name, name, root);
 	}
-
 	const namesToCharacter = {};
-	debugger;
 	pruneFrom(root, "",namesToCharacter);
-
 	return namesToCharacter;
 }
+
+
+function uniqueTrailingNames(names) {
+	const root = {
+		characterMap: {},
+		followers: []
+	};
+	for(const name of names){
+		addToCharacterMap(name, name, root);
+	}
+	// keep going down the 1 path until you don't have everything
+	let current = root;
+	let startingWith = "";
+	while(Object.keys(current.characterMap).length === 1) {
+		let character = Object.keys(current.characterMap)[0];
+		startingWith = startingWith + character;
+		current = current.characterMap[character];
+	}
+
+	return names.map( n => n.replace(startingWith,"") )
+}
+
+
+// ontrack
+// behind
+// complete

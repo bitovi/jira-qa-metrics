@@ -23,29 +23,17 @@ class SteercoTimeline extends StacheElement {
 			<div class='today' style="margin-left: {{this.todayMarginLeft}}%"></div>
 		</div>
 		<div class='release_wrapper'>
+
 		{{# for(release of this.releases) }}
 			<div class='release_box'>
-				<div class="release_box_header_bubble {{this.releaseStatus(release)}}">{{release.release}}</div>
+				<div class="release_box_header_bubble status-{{release.status}}">{{release.shortName}}</div>
 				<div class="release_box_subtitle">
 					{{# if(not(eq(release.release, "Next")))}}
-						<div class="release_box_subtitle_wrapper">
-							<span class="release_box_subtitle_key {{this.releaseDevStatus(release)}}">Dev</span>
-							<span class="release_box_subtitle_value">
-								{{ this.prettyDate(release.lastDev) }}{{this.wasReleaseDate(release, "Dev")}}
-							</span>
-						</div>
 
 						<div class="release_box_subtitle_wrapper">
-							<span class="release_box_subtitle_key {{this.releaseQaStatus(release)}}">QA&nbsp;</span>
-							<span class="release_box_subtitle_value">
-								{{ this.prettyDate(release.lastQa) }}{{this.wasReleaseDate(release, "Qa")}}
-							</span>
-						</div>
-
-						<div class="release_box_subtitle_wrapper">
-								<span class="release_box_subtitle_key {{this.releaseUatStatus(release)}}">UAT</span>
+								<span class="release_box_subtitle_key">UAT</span>
 								<span class="release_box_subtitle_value">
-									{{ this.prettyDate(release.lastUat) }}{{this.wasReleaseDate(release, "Uat")}}
+									{{ this.prettyDate(release.team.due) }}
 								</span>
 						</div>
 					{{/ if }}
@@ -53,15 +41,14 @@ class SteercoTimeline extends StacheElement {
 				<ul class="release_box_body">
 					{{# for(initiative of release.initiatives) }}
 					 <li>
-					 	<span class='{{this.devStatusClass(initiative)}}'>D</span><!--
-						--><span class='{{this.qaStatusClass(initiative)}}'>{{# if(initiative.qa)}}Q{{else}}&nbsp;{{/if}}</span><!--
-						--><span class='{{this.uatStatusClass(initiative)}}'>{{# if(initiative.uat)}}U{{else}}&nbsp;{{/if}}</span>
+						<span class='status-{{initiative.devStatus}}'>D</span>
 						{{initiative.Summary}}
 					 </li>
 					{{/ for}}
 				</ul>
 			</div>
 		{{/ }}
+
 		</div>
 	`
 	get calendarData(){
@@ -69,9 +56,9 @@ class SteercoTimeline extends StacheElement {
 			new Date().getFullYear(),
 			Math.floor( new Date().getMonth() / 3 ) * 3
 		);
-		const hasUat = this.releases.filter( r => r.lastUat );
-		const lastRelease = hasUat[hasUat.length - 1];
-		const endDate = lastRelease.lastUat;
+		const hasDate = this.releases.filter( r => r.team.due );
+		const lastRelease = hasDate[hasDate.length - 1];
+		const endDate = lastRelease.team.due;
 		return getCalendarHtml(startDate, endDate);
 	}
 	//const {html, firstDay, lastDay}
@@ -91,15 +78,17 @@ class SteercoTimeline extends StacheElement {
 		return this.releases.map( (release, index) => {
 
 			const div = document.createElement("div");
-			if(release.lastUat && release.firstDev) {
-				const width = ((release.lastUat - release.firstDev) / totalTime  ) ;
 
-				div.style.width = (width * 100)+ "%";
-				div.style.marginLeft = ((release.firstDev - firstDay) / totalTime * 100) + "%";
-
-				div.className = "release_time "+this.releaseQaStatus(release);
+			if(release.team.start && release.team.due) {
+				const width = ((release.team.due - release.team.start) / totalTime  ) ;
 
 				//div.style.top = (index * 20)+"px";
+				div.style.width = (width * 100)+ "%";
+				div.style.marginLeft = ((release.team.start - firstDay) / totalTime * 100) + "%";
+
+				div.className = "release_time " //+this.releaseQaStatus(release);
+
+				/*
 				const dev = document.createElement("div");
 				dev.className = "dev_time "+this.releaseDevStatus(release);
 
@@ -112,8 +101,9 @@ class SteercoTimeline extends StacheElement {
 				const uatWidth = ((release.lastUat - release.lastQa) / totalTime  ) ;
 
 				uat.style.width = (uatWidth/ width * 100 )+ "%";
-				div.appendChild(uat);
-				div.appendChild(document.createTextNode(release.release))
+				div.appendChild(uat);*/
+
+				div.appendChild(document.createTextNode(release.shortName))
 
 			}
 
@@ -226,27 +216,5 @@ class SteercoTimeline extends StacheElement {
 }
 
 
-
-function reduceStatuses(previousStatus, currentStatus) {
-
-	// "status-behind" is the most sticky
-	if(previousStatus === "status-behind" || currentStatus === "status-behind") {
-		return "status-behind";
-	}
-	// "status-ontrack" is more sticky than "complete" or ""
-	if(previousStatus === "status-ontrack" || currentStatus === "status-ontrack" ) {
-		return "status-ontrack";
-	}
-
-	// "status-complete" and a "" ... we'd go back to on-track ...
-	if(previousStatus === "" && currentStatus === "status-complete") {
-		return "status-ontrack"
-	}
-	if(currentStatus === "" && previousStatus === "status-complete") {
-		return "status-ontrack"
-	}
-
-	return currentStatus;
-}
 
 customElements.define("steerco-timeline", SteercoTimeline);

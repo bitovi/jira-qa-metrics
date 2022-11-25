@@ -1,5 +1,5 @@
 
-const CACHE_FETCH = true;
+const CACHE_FETCH = false;
 
 function responseToJSON(response){
 	return response.json();
@@ -282,6 +282,21 @@ export default function JiraOIDCHelpers({
 			}
 			const currentTimestamp = Math.floor(new Date().getTime()/1000.0);
 			return !((currentTimestamp > expiryTimestamp) || (!accessToken))
+		},
+		getServerInfo(){
+			// https://your-domain.atlassian.net/rest/api/3/serverInfo
+			const scopeIdForJira = jiraHelpers.fetchFromLocalStorage('scopeId');
+			const accessToken = jiraHelpers.fetchFromLocalStorage('accessToken');
+
+			return fetchJSON(
+				`${JIRA_API_URL}/${scopeIdForJira}/rest/api/3/serverInfo`,
+					{
+						headers: {
+							'Authorization': `Bearer ${accessToken}`,
+						}
+					}
+
+				)
 		}
 	}
 
