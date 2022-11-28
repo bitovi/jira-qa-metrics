@@ -29,11 +29,22 @@ class SteercoTimeline extends StacheElement {
 				<div class="release_box_header_bubble status-{{release.status}}">{{release.shortName}}</div>
 				<div class="release_box_subtitle">
 					{{# if(not(eq(release.release, "Next")))}}
-
+						<div class="release_box_subtitle_wrapper">
+								<span class="release_box_subtitle_key">Dev</span>
+								<span class="release_box_subtitle_value">
+									{{ this.prettyDate(release.dev.due) }}{{this.wasReleaseDate(release.dev)}}
+								</span>
+						</div>
+						<div class="release_box_subtitle_wrapper">
+								<span class="release_box_subtitle_key">QA&nbsp;</span>
+								<span class="release_box_subtitle_value">
+									{{ this.prettyDate(release.qa.due) }}{{this.wasReleaseDate(release.qa)}}
+								</span>
+						</div>
 						<div class="release_box_subtitle_wrapper">
 								<span class="release_box_subtitle_key">UAT</span>
 								<span class="release_box_subtitle_value">
-									{{ this.prettyDate(release.team.due) }}
+									{{ this.prettyDate(release.uat.due) }}{{this.wasReleaseDate(release.uat)}}
 								</span>
 						</div>
 					{{/ if }}
@@ -88,20 +99,28 @@ class SteercoTimeline extends StacheElement {
 
 				div.className = "release_time " //+this.releaseQaStatus(release);
 
-				/*
-				const dev = document.createElement("div");
-				dev.className = "dev_time "+this.releaseDevStatus(release);
 
-				const devWidth = ((release.lastDev - release.firstDev) / totalTime  );
+				const dev = document.createElement("div");
+				dev.className = "dev_time " //+this.releaseDevStatus(release);
+
+				const devWidth = ((release.dev.due - release.dev.start) / totalTime  );
 				dev.style.width = (devWidth / width * 100)+ "%";
 				div.appendChild(dev);
 
+				const qa = document.createElement("div");
+				qa.className = "qa_time " //+this.releaseDevStatus(release);
+
+				const qaWidth = ((release.qa.due - release.qa.start) / totalTime  );
+				qa.style.width = (qaWidth / width * 100)+ "%";
+				div.appendChild(qa);
+
+
 				const uat = document.createElement("div");
-				uat.className = "uat_time "+this.releaseUatStatus(release);
-				const uatWidth = ((release.lastUat - release.lastQa) / totalTime  ) ;
+				uat.className = "uat_time "; //+this.releaseUatStatus(release);
+				const uatWidth = ((release.uat.due - release.uat.start) / totalTime  ) ;
 
 				uat.style.width = (uatWidth/ width * 100 )+ "%";
-				div.appendChild(uat);*/
+				div.appendChild(uat);
 
 				div.appendChild(document.createTextNode(release.shortName))
 
@@ -113,7 +132,7 @@ class SteercoTimeline extends StacheElement {
 
 	}
 	prettyDate(date){
-		return dateFormatter.format(date);
+		return date ? dateFormatter.format(date) : "";
 	}
 	devStatusClass(initiative) {
 		if(inQAStatus[initiative.Status] || inPartnerReviewStatus[initiative.Status] || inDoneStatus[initiative.Status]) {
@@ -135,13 +154,13 @@ class SteercoTimeline extends StacheElement {
 		}
 		return "";
 	}
-	wasReleaseDate(release, phase){
+	wasReleaseDate(release){
 
-		const current = release["last"+phase];
-		const was = release["last"+phase+"Was"];
+		const current = release.due;
+		const was = release.dueLastPeriod;
 
 		if(current - DAY_IN_MS > was) {
-			return " was "+this.prettyDate(was);
+			return " ("+this.prettyDate(was)+")";
 		} else {
 			return ""
 		}

@@ -9,7 +9,9 @@ const WIGGLE_ROOM = 0;
 export function addStatusToRelease(release) {
 	return {
 		...release,
-		status: getReleaseStatus(release)
+		status: getReleaseStatus(release),
+		devStatus: getReleaseDevStatus(release),
+		qaStatus: getReleaseQAStatus(release)
 	}
 }
 function getReleaseStatus(release) {
@@ -19,6 +21,9 @@ function getReleaseStatus(release) {
 	} else {
 		return getInitiativeStatus(release);
 	}
+}
+function getReleaseDevStatus(release) {
+	return getInitiativeDevStatus(release)
 }
 
 export function addStatusToInitiative(initiative) {
@@ -37,13 +42,16 @@ function getInitiativeStatus(initiative) {
 }
 
 function isStatusDevComplete(item) {
-	return inQAStatus[item.Status] || inPartnerReviewStatus[item.Status] || inDoneStatus[item.Status]
+	return inQAStatus[item.Status] || isStatusQAComplete(item);
+}
+function isStatusQAComplete(item) {
+	return inPartnerReviewStatus[item.Status] || inDoneStatus[item.Status]
 }
 
 function timedStatus(timedRecord) {
 	if(!timedRecord.due) {
 		return "unknown"
-	} else if(timedRecord.due > WIGGLE_ROOM + timedRecord.dueLastPeriod){
+	} else if((+timedRecord.due) > WIGGLE_ROOM + (+timedRecord.dueLastPeriod)){
 		return "behind";
 	} else if(timedRecord.start > new Date()) {
 		return "notstarted"
@@ -53,13 +61,25 @@ function timedStatus(timedRecord) {
 	}
 }
 
+
+function getReleaseQAStatus(release) {
+	if(isStatusQAComplete(release)) {
+		return "complete";
+	}
+	if(release.qa.length && release.qs.issues.every( epic =>  isStatusQAComplete(epic))) {
+		console.warn("The dev epics for",release, "are complete, but the issue is not in UAT");
+		return "complete"
+	}
+	return timedStatus(release.qa)
+}
+
 export function getInitiativeDevStatus(initiative) {
 	// check if epic statuses are complete
 	if(isStatusDevComplete(initiative)) {
 		return "complete";
 	}
 	if(initiative.dev.length && initiative.dev.issues.every( epic =>  isStatusDevComplete(epic))) {
-		console.warn("The dev epics for",initiative, "are complete, but the initiative is not in QA");
+		console.warn("The dev epics for",initiative, "are complete, but the issue is not in QA");
 		return "complete"
 	}
 	return timedStatus(initiative.dev)
@@ -71,7 +91,7 @@ export function getEpicStatus(epic) {
 		return "complete";
 	} else if(!epic["Due date"] ){
 		return "unknown"
-	} else if( new Date(epic["Due date"]) > WIGGLE_ROOM + epic.dueLastPeriod ){
+	} else if( new Date(epic["Due date"]) > WIGGLE_ROOM + (+epic.dueLastPeriod) ){
 		return "behind"
 	} else {
 		return "ontrack";
