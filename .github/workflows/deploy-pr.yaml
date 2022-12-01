@@ -1,11 +1,13 @@
-name: Deploy
+name: Deploy PR
 
 on:
-  push:
+  pull_request:
     branches: [ main ]
 
 jobs:
   deploy:
+    # if the branch name of the PR does not contain 'skip-deploy'
+    if: "!contains(github.head_ref, 'skip-deploy')"
     runs-on: ubuntu-latest
     steps:
     - id: deploy
