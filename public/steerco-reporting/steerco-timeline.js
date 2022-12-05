@@ -8,7 +8,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {day: "numeric", month: "
 
 const inQAStatus = {"QA": true, "In QA": true};
 const inDevStatus = {"In Development": true};
-const inPartnerReviewStatus = {"Partner Review": true};
+const inPartnerReviewStatus = {"Partner Review": true, "UAT": true};
 const inDoneStatus = {"Done": true};
 
 
@@ -108,6 +108,7 @@ class SteercoTimeline extends StacheElement {
 				div.appendChild(dev);
 
 				const uat = document.createElement("div");
+
 				uat.className = "uat_time "+this.releaseUatStatus(release);
 				const uatWidth = ((release.lastUat - release.lastQa) / totalTime  ) ;
 
@@ -158,8 +159,9 @@ class SteercoTimeline extends StacheElement {
 	}
 	calculateReleasePhaseStatus(release, phase) {
 		const lowerPhase = phase.toLowerCase();
-		const status = release.initiatives
+		const statuses = release.initiatives
 			.map( i => this[lowerPhase+"StatusClass"](i))
+		const status = statuses
 			.reduce( reduceStatuses, null);
 		if(status === "status-behind") {
 			const current = release["last"+phase];
@@ -238,13 +240,15 @@ function reduceStatuses(previousStatus, currentStatus) {
 		return "status-ontrack";
 	}
 
+	
+	/*
 	// "status-complete" and a "" ... we'd go back to on-track ...
 	if(previousStatus === "" && currentStatus === "status-complete") {
 		return "status-ontrack"
 	}
 	if(currentStatus === "" && previousStatus === "status-complete") {
 		return "status-ontrack"
-	}
+	}*/
 
 	return currentStatus;
 }

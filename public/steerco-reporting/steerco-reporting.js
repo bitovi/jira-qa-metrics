@@ -102,7 +102,7 @@ export class SteercoReporter extends StacheElement {
 			return undefined;
 		}
 
-		const releasesToInitiatives = mapReleasesToIssues(filterReleases(filterOutStatuses(filterInitiatives(this.rawIssues), ["Done", "Partner Review"])));
+		const releasesToInitiatives = mapReleasesToIssues(filterReleases(filterOutStatuses(filterInitiatives(this.rawIssues), ["Done"])));
 
 		const sortedReleases = semverSort(Object.keys(releasesToInitiatives));
 

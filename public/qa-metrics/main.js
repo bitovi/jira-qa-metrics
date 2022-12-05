@@ -9,9 +9,6 @@ console.log(issues);
 
 //const issue = await jiraHelpers.fetchJiraIssueChangelog("YUMPOS-985");
 const issueResults = issues.map( (issue) => {
-	if(issue.fields.summary.includes("Employee Edits section")) {
-		debugger;
-	}
 	return {
 		summary: issue.fields.summary,
 		storyPoints: issue.fields[STORY_POINTS_FIELD],
