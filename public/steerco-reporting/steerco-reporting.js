@@ -1,13 +1,16 @@
 // https://yumbrands.atlassian.net/issues/?filter=10897
-import { StacheElement, type, ObservableObject } from "//unpkg.com/can@6/core.min.mjs";
+import { StacheElement, type, ObservableObject } from "//unpkg.com/can@6/core.mjs";
 import sheet from "./steerco-reporting.css" assert {type: 'css'};
 
 import {howMuchHasDueDateMovedForwardChangedSince, DAY_IN_MS, FOUR_WEEKS_AGO} from "./date-helpers.js";
 import semver from "./semver.js";
 
-import {addStatusToInitiative, addStatusToEpic, addStatusToRelease} from "./status-helpers.js";
+import {addStatusToInitiative, addStatusToEpic, addStatusToRelease, getBusinessDatesCount} from "./status-helpers.js";
+import "./capacity-planning.js";
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', {dateStyle: "short"})
+const dateFormatter = new Intl.DateTimeFormat('en-US', {dateStyle: "short"});
+
+import {estimateExtraPoints} from "./confidence.js";
 
 import "./steerco-timeline.js";
 
@@ -25,9 +28,16 @@ document.adoptedStyleSheets = [sheet];
 
 export class SteercoReporter extends StacheElement {
   static view = `
+					<h1>Release Report</h1>
+					<p>Presenting <input value:from='this.jql'/></p>
+
 					{{# if(this.releases) }}
+						<capacity-planning rawIssues:from="this.rawIssues"/>
+
+						<h2>Timeline</h2>
 						<steerco-timeline releases:from="this.releases"/>
 
+						<h2>Release Breakdown</h2>
 						{{# for(release of this.releasesAndNext) }}
 							<h2>{{release.release}}</h2>
 							<table class='basic-table'>
@@ -36,6 +46,8 @@ export class SteercoReporter extends StacheElement {
 										<th>Start</th>
 										<th>Due</th>
 										<th>Due last period</th>
+										<th>Working days</th>
+										<th>Story Points</th>
 								</tr>
 								</thead>
 								<tbody  class='release_box'>
@@ -44,24 +56,32 @@ export class SteercoReporter extends StacheElement {
 									<td>{{this.prettyDate(release.team.start)}}</td>
 									<td>{{this.prettyDate(release.team.due)}}</td>
 									<td>{{this.prettyDate(release.team.dueLastPeriod)}}</td>
+									<td>{{release.team.workingBusinessDays}}</td>
+									<td>{{release.team.weightedEstimate}}</td>
 								</tr>
 								<tr>
 									<td>Dev</td>
 									<td>{{this.prettyDate(release.dev.start)}}</td>
 									<td>{{this.prettyDate(release.dev.due)}}</td>
 									<td>{{this.prettyDate(release.dev.dueLastPeriod)}}</td>
+									<td>{{release.dev.workingBusinessDays}}</td>
+									<td>{{release.dev.weightedEstimate}}</td>
 								</tr>
 								<tr>
 									<td>QA</td>
 									<td>{{this.prettyDate(release.qa.start)}}</td>
 									<td>{{this.prettyDate(release.qa.due)}}</td>
 									<td>{{this.prettyDate(release.qa.dueLastPeriod)}}</td>
+									<td>{{release.qa.workingBusinessDays}}</td>
+									<td>{{release.qa.weightedEstimate}}</td>
 								</tr>
 								<tr>
 									<td>UAT</td>
 									<td>{{this.prettyDate(release.uat.start)}}</td>
 									<td>{{this.prettyDate(release.uat.due)}}</td>
 									<td>{{this.prettyDate(release.uat.dueLastPeriod)}}</td>
+									<td>{{release.uat.workingBusinessDays}}</td>
+									<td>{{release.uat.weightedEstimate}}</td>
 								</tr>
 								</tbody>
 							</table>
@@ -101,7 +121,7 @@ export class SteercoReporter extends StacheElement {
 												{{# for( epic of initiative.dev.issues ) }}
 													<li><a class="status-{{epic.status}}" href="{{epic.url}}">
 														{{epic.Summary}}
-													</a></li>
+													</a> [{{epic.weightedEstimate}}] ({{epic.workingBusinessDays}})</li>
 												{{/ }}
 												</ul>
 											</td>
@@ -194,6 +214,8 @@ export class SteercoReporter extends StacheElement {
 						"Due date",
 						"Issue Type",
 						"Fix versions",
+						"Story Points",
+						"Confidence",
 						"Product Target Release", PARENT_LINK_KEY, LABELS_KEY, STATUS_KEY ],
 				expand: ["changelog"]
 			});
@@ -201,7 +223,7 @@ export class SteercoReporter extends StacheElement {
 			Promise.all([
 				issuesPromise, serverInfoPromise
 			]).then( ([issues, serverInfo])=>{
-				this.rawIssues = toCVSFormat(issues, serverInfo);
+				this.rawIssues = addWorkingBusinessDays( toCVSFormat(issues, serverInfo) );
 			})
 
 
@@ -212,11 +234,17 @@ export class SteercoReporter extends StacheElement {
   drawSlide(results) {
 		this.rawIssues = makeObjectsFromRows(results.data);
   }
-	get teamKeyToCharacters(){
+	get teams(){
 		if(!this.rawIssues) {
+			return new Set();
+		}
+		return new Set( this.rawIssues.map( issue => issue["Project key"]) );
+	}
+	get teamKeyToCharacters(){
+		if(!this.teams) {
 			return [];
 		}
-		const names = new Set( this.rawIssues.map( issue => issue["Project key"]) );
+		const names = this.teams;
 		return characterNamer(names);
 	}
 	get issuesMappedByParentKey(){
@@ -259,7 +287,6 @@ export class SteercoReporter extends StacheElement {
 					const {dueDateWasPriorToTheFirstChangeAfterTheCheckpoint} = howMuchHasDueDateMovedForwardChangedSince(e, FOUR_WEEKS_AGO)
 					return addStatusToEpic({
 						...e,
-						workType: isQAWork(e) ? "qa" : ( isPartnerReviewWork(e) ? "uat" : "dev"),
 						dueLastPeriod: dueDateWasPriorToTheFirstChangeAfterTheCheckpoint
 					})
 				});
@@ -290,14 +317,7 @@ export class SteercoReporter extends StacheElement {
 				)
 			}
 
-			return addStatusToRelease( releaseObject );
-		})
-	}
-	get sortedIncompleteReleasesWithEpics(){
-		return sortedReleases.map( release => {
-			return {
-
-			}
+			return addTeamBreakdown(addStatusToRelease( releaseObject ));
 		})
 	}
 	get releases(){
@@ -311,7 +331,7 @@ export class SteercoReporter extends StacheElement {
 	get releasesAndNext(){
 		if(this.releases) {
 			let releasesAndNext = [
-				...this.releases,
+				...this.releases/*,
 				{
 					release: "Next",
 					initiatives: sortReadyFirst(filterPlanningAndReady(
@@ -319,7 +339,7 @@ export class SteercoReporter extends StacheElement {
 							filterInitiatives(this.rawIssues),
 							this.getReleaseValue
 						)))
-				}];
+				}*/];
 			return releasesAndNext;
 		}
 	}
@@ -332,6 +352,18 @@ export class SteercoReporter extends StacheElement {
 		return [...new Set( initiative.team.issues.map( issue => issue["Project key"]) ) ];
 	}
 
+	/*teamWork(work) {
+		const teamToWork = {};
+		issues.forEach( issue => {
+			let teamKey = issue["Project key"]
+			if(!teamToWork[teamKey]) {
+				teamToWork[teamKey] = 0
+			}
+			//teamToWork[teamKey] +=
+		}) )
+		const teams = [...new Set( work.issues.map( issue => issue["Project key"]) ) ];
+
+	}*/
 }
 
 
@@ -486,7 +518,13 @@ function epicTimingData(epics) {
 		issues: sorted,
 		start: firstDateFromList(sorted),
 		due: endDateFromList(sorted),
-		dueLastPeriod: endDateFromList(sorted,"dueLastPeriod")
+		dueLastPeriod: endDateFromList(sorted,"dueLastPeriod"),
+		workingBusinessDays: epics.reduce( (acc, cur)=>{
+			return acc + (cur.workingBusinessDays || 0 )
+		}, 0),
+		weightedEstimate: epics.reduce( (acc, cur)=>{
+			return acc + (cur.weightedEstimate || 0 )
+		}, 0)
 	}
 }
 
@@ -536,6 +574,29 @@ function toCVSFormat(issues, serverInfo){
 			[PARENT_LINK_KEY]: issue.fields[PARENT_LINK_KEY]?.data?.key,
 			[STATUS_KEY]: issue.fields[STATUS_KEY]?.name
 		}
+	})
+}
+function addWorkingBusinessDays(issues) {
+
+
+	return issues.map( issue => {
+		let weightedEstimate = null;
+		if( issue["Story Points"]) {
+			if(issue["Confidence"]) {
+				weightedEstimate = issue["Story Points"] + Math.round( estimateExtraPoints(issue["Story Points"], issue["Confidence"]) );
+			} else {
+				weightedEstimate = issue["Story Points"];
+			}
+		}
+
+		return {
+			...issue,
+			workType: isQAWork(issue) ? "qa" : ( isPartnerReviewWork(issue) ? "uat" : "dev"),
+			workingBusinessDays:
+				issue["Due date"] && issue["Start date"] ?
+					getBusinessDatesCount( new Date(issue["Start date"]), new Date(issue["Due date"]) )  : null,
+			weightedEstimate: weightedEstimate
+		};
 	})
 }
 
@@ -608,6 +669,14 @@ function uniqueTrailingNames(names) {
 
 	return names.map( n => n.replace(startingWith,"") )
 }
+
+function addTeamBreakdown(release) {
+
+	return {
+		...release
+	}
+}
+
 
 
 // ontrack

@@ -65,7 +65,7 @@ steerco-timeline {
 }
 
 .gantt .uat_time, .gantt .dev_time, .gantt .qa_time {
-	bottom: 4px;
+	bottom: 6px;
 	position: absolute;
 	right: 0px;
 	z-index: -1;
@@ -74,19 +74,19 @@ steerco-timeline {
 .gantt .uat_time {
 	/* Pattern 3 */
 	/*background-image: repeating-linear-gradient(-26deg, rgba(255,255,255, 0.25), rgba(255,255,255, 0.25) 2px, transparent 3px, transparent 7px);*/
-	border-bottom: solid 2px blueviolet;
+	border-bottom: solid 3px blueviolet;
 	bottom: 0px;
 }
 .gantt .qa_time {
 	/* Pattern 3 */
 	/*background-image: repeating-linear-gradient(-26deg, rgba(255,255,255, 0.25), rgba(255,255,255, 0.25) 2px, transparent 3px, transparent 7px);*/
-	border-bottom: solid 2px #d28ccf;
-	bottom: 2px;
+	border-bottom: solid 3px #d28ccf;
+	bottom: 3px;
 }
 .gantt .dev_time {
 	/* Pattern 1 */
 	/*background-image: repeating-linear-gradient(-45deg, rgba(255,255,255, 0.25), rgba(255,255,255, 0.25) 1px, transparent 1px, transparent 6px);*/
-	border-bottom: solid 2px tan;
+	border-bottom: solid 3px tan;
 }
 
 .gantt .status-complete {
@@ -142,7 +142,7 @@ steerco-timeline {
 	display: flex;
 	flex-flow: row;
 	gap: 16px;
-	padding: 32px;
+	padding: 0px 32px;
 }
 .release_wrapper .release_box {
 	border-radius: 12px;

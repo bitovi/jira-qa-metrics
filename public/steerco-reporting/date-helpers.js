@@ -32,4 +32,4 @@ export function howMuchHasDueDateMovedForwardChangedSince(epic, checkpointDate){
 }
 
 export const DAY_IN_MS = 1000 * 60 * 60 * 24;
-export const FOUR_WEEKS_AGO = new Date( new Date().getTime() - 7 * 2 * DAY_IN_MS );
+export const FOUR_WEEKS_AGO = new Date( new Date().getTime() - 7 * 4 * DAY_IN_MS );
