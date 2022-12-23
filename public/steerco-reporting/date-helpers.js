@@ -18,6 +18,9 @@ export function howMuchHasDueDateMovedForwardChangedSince(epic, checkpointDate){
 			}
 		}
 	}
+	if(!currentDate) {
+		currentDate = new Date(epic["Due date"]);
+	}
 	if(!dueDateWasPriorToTheFirstChangeAfterTheCheckpoint) {
 		dueDateWasPriorToTheFirstChangeAfterTheCheckpoint = currentDate;
 	}
@@ -32,4 +35,3 @@ export function howMuchHasDueDateMovedForwardChangedSince(epic, checkpointDate){
 }
 
 export const DAY_IN_MS = 1000 * 60 * 60 * 24;
-export const FOUR_WEEKS_AGO = new Date( new Date().getTime() - 7 * 4 * DAY_IN_MS );

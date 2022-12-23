@@ -2,7 +2,7 @@
 import { StacheElement, type, ObservableObject, stache } from "//unpkg.com/can@6/core.mjs";
 
 import {getCalendarHtml, getQuarter} from "./quarter-timeline.js";
-import {howMuchHasDueDateMovedForwardChangedSince, DAY_IN_MS, FOUR_WEEKS_AGO} from "./date-helpers.js";
+import {howMuchHasDueDateMovedForwardChangedSince, DAY_IN_MS} from "./date-helpers.js";
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {day: "numeric", month: "short"})
 
@@ -134,26 +134,6 @@ class SteercoTimeline extends StacheElement {
 	prettyDate(date){
 		return date ? dateFormatter.format(date) : "";
 	}
-	devStatusClass(initiative) {
-		if(inQAStatus[initiative.Status] || inPartnerReviewStatus[initiative.Status] || inDoneStatus[initiative.Status]) {
-			return "status-complete";
-		} else if(inQAStatus[initiative?.dev?.Status]) {
-			// check if the dev epic is complete
-
-			console.warn("The dev epic for",initiative, "is complete, but the initiative is not in QA");
-			return "status-complete";
-		} else if(inDevStatus[initiative.Status] ) {
-			if(initiative.dev) {
-				const {dateHasMovedForward, daysChanged} = howMuchHasDueDateMovedForwardChangedSince(initiative.dev, FOUR_WEEKS_AGO);
-				if(dateHasMovedForward) {
-					return "status-behind";
-				} else {
-					return "status-ontrack";
-				}
-			}
-		}
-		return "";
-	}
 	wasReleaseDate(release){
 
 		const current = release.due;
@@ -163,73 +143,6 @@ class SteercoTimeline extends StacheElement {
 			return " ("+this.prettyDate(was)+")";
 		} else {
 			return ""
-		}
-	}
-	calculateReleasePhaseStatus(release, phase) {
-		const lowerPhase = phase.toLowerCase();
-		const status = release.initiatives
-			.map( i => this[lowerPhase+"StatusClass"](i))
-			.reduce( reduceStatuses, null);
-		if(status === "status-behind") {
-			const current = release["last"+phase];
-			const was = release["last"+phase+"Was"];
-
-			if(current - DAY_IN_MS > was) {
-				return status;
-			} else {
-				return "status-ontrack";
-			}
-		} else {
-			return status;
-		}
-	}
-	releaseDevStatus(release) {
-		return this.calculateReleasePhaseStatus(release, "Dev")
-	}
-	releaseQaStatus(release) {
-		return this.calculateReleasePhaseStatus(release, "Qa")
-	}
-	releaseUatStatus(release) {
-		return this.calculateReleasePhaseStatus(release, "Uat")
-	}
-	releaseStatus(release) {
-		return [
-			this.releaseDevStatus(release),
-			this.releaseQaStatus(release),
-			this.releaseUatStatus(release)
-		].reduce(reduceStatuses)
-
-	}
-	qaStatusClass(initiative) {
-		if(inPartnerReviewStatus[initiative.Status] || inDoneStatus[initiative.Status]) {
-			return "status-complete";
-		}
-		// has QA moved back
-		if(initiative.qa) {
-			const {dateHasMovedForward, daysChanged} = howMuchHasDueDateMovedForwardChangedSince(initiative.qa, FOUR_WEEKS_AGO);
-			if(dateHasMovedForward) {
-				return "status-behind";
-			} else {
-				return "status-ontrack";
-			}
-		} else {
-			return "";
-		}
-	}
-	uatStatusClass(initiative) {
-		if(inDoneStatus[initiative.Status]) {
-			return "status-complete";
-		}
-		// has QA moved back
-		if(initiative.uat) {
-			const {dateHasMovedForward, daysChanged} = howMuchHasDueDateMovedForwardChangedSince(initiative.uat, FOUR_WEEKS_AGO);
-			if(dateHasMovedForward) {
-				return "status-behind";
-			} else {
-				return "status-ontrack";
-			}
-		} else {
-			return "";
 		}
 	}
 }

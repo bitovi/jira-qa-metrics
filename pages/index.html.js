@@ -8,11 +8,10 @@ module.exports = function(env){
 			<meta charset="UTF-8">
 			<meta http-equiv="X-UA-Compatible" content="IE=edge">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Jira App</title>
-
+			<title>Timeline Reporting App</title>
 	</head>
-	<body>
-			<h1>Jira QA Metrics</h1>
+	<body class='container'>
+			<h1>Timeline Reporting App</h1>
 			<div id="mainElement">Loading ... </div>
 			<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.1.2/axios.min.js"></script>
 			<script type="module">

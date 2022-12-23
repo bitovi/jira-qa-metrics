@@ -26,7 +26,7 @@ class CapacityPlanning extends StacheElement {
 						{{# for(epic of team.dev.issues)}}
 							<tr><td>{{epic.Summary}}</td><td><a href="{{initiative.url}}">{{epic["Issue key"]}}</a></td><td>{{epic.workingDaysInPeriod}}</td></tr>
 						{{/ for}}
-
+					</tbody>
 				</table>
 
 			{{/}}

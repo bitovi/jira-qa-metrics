@@ -1,8 +1,9 @@
 // https://yumbrands.atlassian.net/issues/?filter=10897
 import { StacheElement, type, ObservableObject } from "//unpkg.com/can@6/core.mjs";
+//import bootstrap from "https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" assert {type: 'css'};
 import sheet from "./steerco-reporting.css" assert {type: 'css'};
 
-import {howMuchHasDueDateMovedForwardChangedSince, DAY_IN_MS, FOUR_WEEKS_AGO} from "./date-helpers.js";
+import {howMuchHasDueDateMovedForwardChangedSince, DAY_IN_MS} from "./date-helpers.js";
 import semver from "./semver.js";
 
 import {addStatusToInitiative, addStatusToEpic, addStatusToRelease, getBusinessDatesCount} from "./status-helpers.js";
@@ -24,15 +25,24 @@ const LABELS_KEY = "Labels";
 const STATUS_KEY = "Status";
 const FIX_VERSIONS_KEY = "Fix versions";
 
-document.adoptedStyleSheets = [sheet];
+document.adoptedStyleSheets = [ sheet];
 
 export class SteercoReporter extends StacheElement {
-  static view = `
+	static view = `
 					<h1>Release Report</h1>
-					<p>Presenting <input value:from='this.jql'/></p>
+
+					<div>
+						<label class="form-label">JQL to retrieve initiatives and epics:</label>
+						<input class="form-control" value:bind='this.jql'/>
+					</div>
+					<div>
+						<label class="form-label">Compare to {{this.compareToDaysPrior}} days ago:</label>
+						<input class="form-control" type='range' valueAsNumber:bind:on:input='this.compareToDaysPrior' min="0" max="90"/>
+					</div>
+
 
 					{{# if(this.releases) }}
-						<capacity-planning rawIssues:from="this.rawIssues"/>
+
 
 						<h2>Timeline</h2>
 						<steerco-timeline releases:from="this.releases"/>
@@ -168,25 +178,42 @@ export class SteercoReporter extends StacheElement {
 							<ul>
 							</ul>
 						{{/ for }}
-
+						<capacity-planning rawIssues:from="this.rawIssues"/>
 
 					{{ else }}
 						Loading ...
 					{{/ if}}
 
-  `;
-  static props = {
-    uploadUrl: {
-      get default(){
-        return localStorage.getItem("csv-url") || "";
-      },
-      set(newVal) {
-        localStorage.setItem("csv-url", newVal);
-        return newVal;
-      }
-    },
+	`;
+	static props = {
+		uploadUrl: {
+			get default(){
+				return localStorage.getItem("csv-url") || "";
+			},
+			set(newVal) {
+				localStorage.setItem("csv-url", newVal);
+				return newVal;
+			}
+		},
+		compareToDaysPrior: {
+			type: type.convert(Number),
+			default: 15
+		},
 		jql: {
-			type: String,
+			value({lastSet, listenTo, resolve}) {
+				if(lastSet.value) {
+					resolve(lastSet.value)
+				} else {
+					resolve( new URL(window.location).searchParams.get("jql") || "" );
+				}
+
+				listenTo(lastSet, (value)=> {
+					const newUrl = new URL(window.location);
+					newUrl.searchParams.set("jql", value)
+					history.pushState({},'',newUrl);
+					resolve(value);
+				})
+			}
 		},
 		mode: {
 			type: String,
@@ -197,9 +224,9 @@ export class SteercoReporter extends StacheElement {
 				return issue?.[FIX_VERSIONS_KEY]?.[0]?.name;
 			}
 		}
-  };
-  // hooks
-  async connected() {
+	};
+	// hooks
+	async connected() {
 		this.jiraHelpers.getServerInfo().then( (serverInfo) => {
 			this.serverInfo = serverInfo;
 		});
@@ -229,11 +256,11 @@ export class SteercoReporter extends StacheElement {
 
 		}
 
-  }
+	}
 
-  drawSlide(results) {
+	drawSlide(results) {
 		this.rawIssues = makeObjectsFromRows(results.data);
-  }
+	}
 	get teams(){
 		if(!this.rawIssues) {
 			return new Set();
@@ -275,16 +302,20 @@ export class SteercoReporter extends StacheElement {
 				),
 				this.getReleaseValue
 			);
-
+		//console.log(this.compareToDaysPrior * DAY_IN_MS, this.compareToDaysPrior);
 		const semverReleases = semverSort(Object.keys(releasesToInitiatives));
 
 		const shortReleaseNames = uniqueTrailingNames(semverReleases);
 
 		return semverReleases.map( (release, index) => {
 			const initiatives = releasesToInitiatives[release].map( (i) => {
-
 				const timedEpics = (issuesMappedByParentKey[i[ISSUE_KEY]] || []).map( (e) => {
-					const {dueDateWasPriorToTheFirstChangeAfterTheCheckpoint} = howMuchHasDueDateMovedForwardChangedSince(e, FOUR_WEEKS_AGO)
+					if(e.Summary === "UAT: Hardware, Void and Refund") {
+						//debugger;
+					}
+					const {dueDateWasPriorToTheFirstChangeAfterTheCheckpoint} = howMuchHasDueDateMovedForwardChangedSince(e,
+						new Date( new Date().getTime() - this.compareToDaysPrior * DAY_IN_MS )
+					)
 					return addStatusToEpic({
 						...e,
 						dueLastPeriod: dueDateWasPriorToTheFirstChangeAfterTheCheckpoint
@@ -514,6 +545,9 @@ function getDateFromLastPeriod(initiatives, lowercasePhase, checkpoint) {
 
 function epicTimingData(epics) {
 	const sorted = sortByStartDate(epics);
+	const due = endDateFromList(sorted),
+		dueLastPeriod = endDateFromList(sorted,"dueLastPeriod");
+
 	return {
 		issues: sorted,
 		start: firstDateFromList(sorted),

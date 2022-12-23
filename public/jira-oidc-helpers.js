@@ -57,7 +57,7 @@ export default function JiraOIDCHelpers({
 				return window.localStorage.getItem(key);
 		},
 		fetchAuthorizationCode: () => {
-				const url = `https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=${JIRA_CLIENT_ID}&scope=${JIRA_SCOPE}&redirect_uri=${JIRA_CALLBACK_URL}&response_type=code&prompt=consent`;
+				const url = `https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=${JIRA_CLIENT_ID}&scope=${JIRA_SCOPE}&redirect_uri=${JIRA_CALLBACK_URL}&response_type=code&prompt=consent&state=${encodeURIComponent( window.location.search )}`;
 				window.location.href = url;
 		},
 		refreshAccessToken: async (accessCode) => {
@@ -96,7 +96,9 @@ export default function JiraOIDCHelpers({
 								scopeId,
 						});
 						//redirect to data page
-						location.href = '/';
+					
+						const addOnQuery = new URL(window.location).searchParams.get("state");
+						location.href = '/'+ (addOnQuery||"");
 				} catch (error) {
 						//handle error properly.
 						console.error(error);
@@ -309,22 +311,24 @@ export default function JiraOIDCHelpers({
 		return map;
 	}
 
+	if(jiraHelpers.hasValidAccessToken()) {
+		fieldsRequest = jiraHelpers.fetchJiraFields().then( (fields) => {
+			const nameMap = {};
+			const idMap = {};
+			fields.forEach((f) => {
+				idMap[f.id] = f.name;
+				nameMap[f.name] = f.id;
+			});
+			console.log(nameMap);
 
-	fieldsRequest = jiraHelpers.fetchJiraFields().then( (fields) => {
-		const nameMap = {};
-		const idMap = {};
-		fields.forEach((f) => {
-			idMap[f.id] = f.name;
-			nameMap[f.name] = f.id;
+			return {
+				list: fields,
+				nameMap: nameMap,
+				idMap:idMap
+			}
 		});
-		console.log(nameMap);
+	}
 
-		return {
-			list: fields,
-			nameMap: nameMap,
-			idMap:idMap
-		}
-	});
 
 	function mapIdsToNames(obj, fields) {
 		const mapped = {};
