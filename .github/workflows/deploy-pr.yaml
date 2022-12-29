@@ -1,11 +1,13 @@
-name: Deploy
+name: Deploy PR
 
 on:
-  push:
+  pull_request:
     branches: [ main ]
 
 jobs:
   EC2-Deploy:
+    # if the branch name of the PR does not contain 'skip-deploy'
+    if: "!contains(github.head_ref, 'skip-deploy')"
     runs-on: ubuntu-latest
     environment:
       name: ${{ github.ref_name }}
@@ -24,6 +26,7 @@ jobs:
 
         domain_name: bitovi-jira.com
         app_port: 3000
+
     - if: ${{ steps.deploy.outputs.vm_url != '' }}
       name: Print result created
       run: |
