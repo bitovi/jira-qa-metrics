@@ -6,7 +6,8 @@ import sheet from "./steerco-reporting.css" assert {type: 'css'};
 import {howMuchHasDueDateMovedForwardChangedSince, DAY_IN_MS} from "./date-helpers.js";
 import semver from "./semver.js";
 
-import {addStatusToInitiative, addStatusToEpic, addStatusToRelease, getBusinessDatesCount} from "./status-helpers.js";
+import {addStatusToInitiative, addStatusToEpic,
+		addStatusToRelease, getBusinessDatesCount, inPartnerReviewStatuses} from "./status-helpers.js";
 import "./capacity-planning.js";
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {dateStyle: "short"});
@@ -39,13 +40,17 @@ export class SteercoReporter extends StacheElement {
 						<label class="form-label">Compare to {{this.compareToDaysPrior}} days ago:</label>
 						<input class="form-control" type='range' valueAsNumber:bind:on:input='this.compareToDaysPrior' min="0" max="90"/>
 					</div>
+					<div>
+						<label class="form-label">Show Dev and QA timings:</label>
+						<input type='checkbox' checked:bind='this.showExtraTimings'/>
+					</div>
 
 
 					{{# if(this.releases) }}
 
 
 						<h2>Timeline</h2>
-						<steerco-timeline releases:from="this.releases"/>
+						<steerco-timeline releases:from="this.releases" showExtraTimings:from="this.showExtraTimings"/>
 
 						<h2>Release Breakdown</h2>
 						{{# for(release of this.releasesAndNext) }}
@@ -178,7 +183,6 @@ export class SteercoReporter extends StacheElement {
 							<ul>
 							</ul>
 						{{/ for }}
-						<capacity-planning rawIssues:from="this.rawIssues"/>
 
 					{{ else }}
 						Loading ...
@@ -198,6 +202,22 @@ export class SteercoReporter extends StacheElement {
 		compareToDaysPrior: {
 			type: type.convert(Number),
 			default: 15
+		},
+		showExtraTimings: {
+			value({lastSet, listenTo, resolve}) {
+				if(lastSet.value) {
+					resolve(!!lastSet.value)
+				} else {
+					resolve( (new URL(window.location).searchParams.get("showExtraTimings") === "true") || false );
+				}
+
+				listenTo(lastSet, (value)=> {
+					const newUrl = new URL(window.location);
+					newUrl.searchParams.set("showExtraTimings", value ? "true" : "false")
+					history.pushState({},'',newUrl);
+					resolve(value);
+				})
+			}
 		},
 		jql: {
 			value({lastSet, listenTo, resolve}) {
@@ -297,7 +317,7 @@ export class SteercoReporter extends StacheElement {
 		const releasesToInitiatives = mapReleasesToIssues(
 			filterReleases(
 				filterOutStatuses(
-					filterInitiatives(this.rawIssues), ["Done", "Partner Review"]),
+					filterInitiatives(this.rawIssues), ["Done","Cancelled", "Duplicate",...inPartnerReviewStatuses]),
 					this.getReleaseValue
 				),
 				this.getReleaseValue
@@ -339,6 +359,8 @@ export class SteercoReporter extends StacheElement {
 			const releaseObject = {
 				release: release,
 				shortName: shortReleaseNames[index],
+				version: cleanedRelease(release),
+				shortVersion: partialReleaseName(release),
 				initiatives
 			}
 
@@ -444,24 +466,38 @@ function mapReleasesToIssues(issues, getReleaseValue) {
 	return map;
 }
 
+function partialReleaseName(release) {
+	let match = release.match(/(?:\d+\.\d+\.[\dX]+)|(?:\d+\.[\dX]+)|(?:\d+)$/);
+	if(match) {
+		return match[0].replace(".X",".0");
+	}
+}
+
+function cleanedRelease(release){
+	let clean = partialReleaseName(release);
+	if(clean) {
+		if(clean.length === 1) {
+			clean = clean+".0.0";
+		}
+		if(clean.length === 3) {
+			clean = clean+".0";
+		}
+		if( semver.clean(clean) ){
+			return clean;
+		}
+	}
+}
+
 function semverSort(values) {
 	const cleanMap = {};
 	const cleanValues = [];
 	values.forEach( (release) => {
-		let match = release.match(/(?:\d+\.\d+\.[\dX]+)|(?:\d+\.[\dX]+)|(?:\d+)$/);
-		if(match) {
-			let clean = match[0].replace(".X",".0");
-			if(clean.length === 1) {
-				clean = clean+".0.0";
-			}
-			if(clean.length === 3) {
-				clean = clean+".0";
-			}
-			if( semver.clean(clean) ){
-				cleanMap[clean] = release;
-				cleanValues.push(clean);
-			}
+		const clean = cleanedRelease(release);
+		if(clean && semver.clean(clean) ){
+			cleanMap[clean] = release;
+			cleanValues.push(clean);
 		}
+
 	});
 	const cleanSorted = semver.sort(cleanValues);
 
@@ -700,8 +736,12 @@ function uniqueTrailingNames(names) {
 		startingWith = startingWith + character;
 		current = current.characterMap[character];
 	}
+	if(startingWith.length > 3) {
+		return names.map( n => n.replace(startingWith,"") )
+	} else {
+		return names;
+	}
 
-	return names.map( n => n.replace(startingWith,"") )
 }
 
 function addTeamBreakdown(release) {

@@ -17,42 +17,56 @@ class SteercoTimeline extends StacheElement {
 	static view = `
 
 		<div class='calendar_wrapper'>{{this.calendarHTML}}</div>
-		<div class='gantt' style="position: relative; top: -50px; padding: 0px 24px">{{# for(chart of this.releaseGantt) }}
+		<div class='gantt {{# if(this.showExtraTimings) }}extra-timings{{else}}simple-timings{{/ if}}'>{{# for(chart of this.releaseGantt) }}
 			{{chart}}
 		{{/}}
 			<div class='today' style="margin-left: {{this.todayMarginLeft}}%"></div>
 		</div>
-		<div class='release_wrapper'>
+		<div class='release_wrapper {{# if(this.showExtraTimings) }}extra-timings{{else}}simple-timings{{/ if}}'>
 
 		{{# for(release of this.releases) }}
 			<div class='release_box'>
-				<div class="release_box_header_bubble status-{{release.status}}">{{release.shortName}}</div>
+				<div class="release_box_header_bubble status-icon status-{{release.status}}">{{release.shortName}}</div>
 				<div class="release_box_subtitle">
 					{{# if(not(eq(release.release, "Next")))}}
+						{{# if(this.showExtraTimings) }}
 						<div class="release_box_subtitle_wrapper">
-								<span class="release_box_subtitle_key">Dev</span>
+								<span class="release_box_subtitle_key status-icon status-{{release.devStatus}}">Dev</span>
 								<span class="release_box_subtitle_value">
 									{{ this.prettyDate(release.dev.due) }}{{this.wasReleaseDate(release.dev)}}
 								</span>
 						</div>
 						<div class="release_box_subtitle_wrapper">
-								<span class="release_box_subtitle_key">QA&nbsp;</span>
+								<span class="release_box_subtitle_key status-icon status-{{release.qaStatus}}">QA&nbsp;</span>
 								<span class="release_box_subtitle_value">
 									{{ this.prettyDate(release.qa.due) }}{{this.wasReleaseDate(release.qa)}}
 								</span>
 						</div>
 						<div class="release_box_subtitle_wrapper">
-								<span class="release_box_subtitle_key">UAT</span>
+								<span class="release_box_subtitle_key status-{{release.uatStatus}}">UAT</span>
 								<span class="release_box_subtitle_value">
 									{{ this.prettyDate(release.uat.due) }}{{this.wasReleaseDate(release.uat)}}
 								</span>
 						</div>
+						{{ else }}
+						<div class="release_box_subtitle_wrapper">
+								<b>Target Delivery</b>
+								<span class="release_box_subtitle_value">
+									{{ this.prettyDate(release.uat.due) }}{{this.wasReleaseDate(release.uat)}}
+								</span>
+						</div>
+						{{/ if }}
+
 					{{/ if }}
 				</div>
 				<ul class="release_box_body">
 					{{# for(initiative of release.initiatives) }}
-					 <li>
-						<span class='status-{{initiative.devStatus}}'>D</span>
+					 <li class='status-{{initiative.devStatus}} '>
+					  {{# if(this.showExtraTimings) }}
+						<span class='status-icon status-{{initiative.devStatus}}'>D</span><span
+							class='status-icon status-{{initiative.qaStatus}}'>Q</span><span
+							class='status-icon status-{{initiative.uatStatus}}'>U</span>
+						{{/ if }}
 						{{initiative.Summary}}
 					 </li>
 					{{/ for}}
@@ -81,7 +95,25 @@ class SteercoTimeline extends StacheElement {
 		const totalTime = (lastDay - firstDay);
 		return (new Date() - firstDay- 1000*60*60*24*2) / totalTime * 100;
 	}
-	get releaseGantt(){
+	releaseTimeline(){
+		const {firstDay, lastDay} = this.calendarData;
+		const totalTime = (lastDay - firstDay);
+		console.log("f",firstDay,"l", lastDay);
+
+		return this.releases.map( (release, index) => {
+
+			const div = document.createElement("div");
+			if(release.team.due) {
+				div.className = "release-timeline-item status-"+release.status;
+				div.style.left = ((release.team.due - firstDay) / totalTime * 100) + "%";
+				div.appendChild(document.createTextNode("M"+release.shortVersion))
+			}
+
+
+			return div;
+		})
+	}
+	releaseGanttWithTimeline(){
 		const {firstDay, lastDay} = this.calendarData;
 		const totalTime = (lastDay - firstDay);
 		console.log("f",firstDay,"l", lastDay);
@@ -129,7 +161,13 @@ class SteercoTimeline extends StacheElement {
 
 			return div;
 		})
-
+	}
+	get releaseGantt(){
+		if(this.showExtraTimings) {
+			return this.releaseGanttWithTimeline();
+		} else {
+			return this.releaseTimeline();
+		}
 	}
 	prettyDate(date){
 		return date ? dateFormatter.format(date) : "";

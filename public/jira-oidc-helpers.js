@@ -1,5 +1,5 @@
 
-const CACHE_FETCH = true;
+const CACHE_FETCH = false;
 
 function responseToJSON(response){
 	return response.json();
@@ -96,7 +96,7 @@ export default function JiraOIDCHelpers({
 								scopeId,
 						});
 						//redirect to data page
-					
+
 						const addOnQuery = new URL(window.location).searchParams.get("state");
 						location.href = '/'+ (addOnQuery||"");
 				} catch (error) {
