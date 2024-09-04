@@ -9,6 +9,7 @@ module.exports = function(env){
 			<meta http-equiv="X-UA-Compatible" content="IE=edge">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
 			<title>Timeline Reporting App</title>
+			<link rel="stylesheet" href="/qa-metrics/release-report.css">
 	</head>
 	<body class='container'>
 			<h1>Timeline Reporting App</h1>
@@ -16,7 +17,7 @@ module.exports = function(env){
 			<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.1.2/axios.min.js"></script>
 			<script type="module">
 				import JiraOIDCHelpers from "./jira-oidc-helpers.js";
-				import main from "./main.js";
+				import main from "./qa-metrics/main.js";
 				const jiraHelpers = JiraOIDCHelpers(${JSON.stringify(getSafeEnv())});
 				main(jiraHelpers);
 			</script>

@@ -6,15 +6,15 @@ import releaseReport from "./release-report.js";
 
 export default async function main(jiraHelpers){
 
-
+	let token = await jiraHelpers.getAccessToken();
 
 	mainElement.textContent = "Getting stories";
 
 		//return {release, labels, data};
 
-	//const data = plotTimeInDaysVsStoryPoints(jiraHelpers);
-	//devTimePerPointDistribution(jiraHelpers, data);
-	releaseReport(jiraHelpers);
+	const data = plotTimeInDaysVsStoryPoints(jiraHelpers);
+	devTimePerPointDistribution(jiraHelpers, data);
+	//releaseReport(jiraHelpers);
 	return;
 
 

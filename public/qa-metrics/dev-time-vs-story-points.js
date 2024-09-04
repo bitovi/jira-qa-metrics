@@ -55,16 +55,18 @@ export async function plotTimeInDaysVsStoryPoints(jiraHelpers){
 
 
 	const issuesPromise = jiraHelpers.fetchAllJiraIssuesWithJQLAndFetchAllChangelogUsingNamedFields({
-		jql: `project = "YUMPOS" and "Actual Release[Labels]" != EMPTY and issueType not in (Initiatives, Epic)`,
-		fields: ["summary","Story Points","Actual Release"],
+		jql: `project = "RODS" and issueType not in (Initiative, Epic) and "Story Points[Number]" IS NOT EMPTY and status in (Done, Accepted)`,
+		fields: ["summary","Story Points","Parent"],
 		expand: ["changelog"]
 	});
 	//const {labels, data} = await getDataAndLabelsFromIssues(issuesPromise);
 	const issues = await issuesPromise;
+	const reasons = [];
+	console.log({issues});
 	//const issue = await jiraHelpers.fetchJiraIssueChangelog("YUMPOS-985");
 	const releases = {};
 	const issueResults = issues.forEach( (issue) => {
-		let releaseName = issue.fields["Actual Release"][0];
+		let releaseName = issue.fields?.Parent?.key || "parent-less";
 		let release = releases[releaseName];
 		if(!release) {
 			release = releases[releaseName] = {
@@ -82,6 +84,15 @@ export async function plotTimeInDaysVsStoryPoints(jiraHelpers){
 				x: points,
 				y: timeInDev
 			});
+		} else {
+			if(!points && !timeInDev) {
+				reasons.push("neither "+issue.key)
+			} else if(!points) {
+				reasons.push("points")
+			} else {
+				
+				reasons.push("timeInDev"+issue.key)
+			}
 		}
 
 	});
@@ -108,8 +119,7 @@ export async function plotTimeInDaysVsStoryPoints(jiraHelpers){
 	}
 
 	timeVsPoints.update();
-
-
-
+	console.log(reasons);
+	return {data: Object.values(releases).map( r => r.data).flat(1) };
 	//return {labels, data};
 }

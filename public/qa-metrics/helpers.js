@@ -4,7 +4,6 @@ import semver from "../steerco-reporting/semver.js";
 export async function getDataAndLabelsFromIssues(issuesPromise) {
 	const issues = await issuesPromise;
 
-	//const issue = await jiraHelpers.fetchJiraIssueChangelog("YUMPOS-985");
 	const issueResults = issues.map( (issue) => {
 		return {
 			summary: issue.fields.Summary,

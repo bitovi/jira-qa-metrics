@@ -1,7 +1,7 @@
 import Chart from "./chart.js";
 import {getDataAndLabelsFromIssues, getRandomColor, calculateTimeInStatus, semverSort} from "./helpers.js";
 
-import sheet from "./release-report.css" assert {type: 'css'};
+
 
 //document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
 
@@ -13,15 +13,14 @@ export default async function releaseReport(jiraHelpers){
 	document.body.append(div);
 
 	const issuesPromise = jiraHelpers.fetchAllJiraIssuesWithJQLAndFetchAllChangelogUsingNamedFields({
-		jql: `project = "YUMPOS" and "Actual Release[Labels]" != EMPTY and issueType not in (Initiatives, Epic)`,
-		fields: ["summary","Story Points","Actual Release"],
+		jql: `project = "RODS"`,
+		fields: ["summary","Story Points","Parent"],
 		expand: ["changelog"]
 	});
 	//const {labels, data} = await getDataAndLabelsFromIssues(issuesPromise);
 	const issues = await issuesPromise;
-	//const issue = await jiraHelpers.fetchJiraIssueChangelog("YUMPOS-985");
 	const releases = {};
-	console.log(issues);
+	console.log({issues});
 	const issueResults = issues.forEach( (issue) => {
 		let releaseName = issue.fields["Actual Release"][0];
 		let release = releases[releaseName];

@@ -14,25 +14,36 @@ export async function devTimePerPointDistribution(jiraHelpers, dataAndLabelsProm
 
 
 
-
+	/*
 	const issuesPromise = jiraHelpers.fetchAllJiraIssuesWithJQLAndFetchAllChangelogUsingNamedFields({
-		jql: `project = "YUMPOS" and "Actual Release[Labels]" != EMPTY and issueType not in (Initiatives, Epic)`,
+		jql: `project = "RODS" and issueType not in (Initiative, Epic)`,
 		fields: ["summary","Story Points"],
 		expand: ["changelog"]
-	});
-	const {data} = await dataAndLabelsPromise;
+	});*/
+	const promiseData = await dataAndLabelsPromise;
+	const {data} = promiseData;
 
+	// X is the number of Points, Y is the number of days.
+	// Elimiate stuff that was finished in one day
 	const filteredData = data.filter( ({x,y}) => y > 1  )
 
+	// Calculate the amount of time for each point for every story
 	const timePerPoints = filteredData.map( item => item.y / item.x );
 
-
-
+	// get rid of extremes
+	// - less than a point = hour
+	// - more than 7 days per point
 	const filteredTimePerPoints = timePerPoints.filter( v => v > 1 / 24 && v < 7)
 
 	const sum = timePerPoints.reduce((last, current)=> last+current, 0);
-	console.log("average", sum / timePerPoints.length, getStandardDeviation(timePerPoints),
-	filteredTimePerPoints.reduce((last, current)=> last+current, 0) / filteredTimePerPoints.length);
+	console.log("source count",data.length, "count", timePerPoints.length,
+			"average", 
+			sum / timePerPoints.length, 
+			"std",
+			getStandardDeviation(timePerPoints),
+			"average without extremes",
+		filteredTimePerPoints.reduce((last, current)=> last+current, 0) / filteredTimePerPoints.length
+	);
 
 
 	const max = Math.max(...filteredTimePerPoints);
